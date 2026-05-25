@@ -1,0 +1,108 @@
+1. Judul
+Deteksi dan Klasifikasi Sampah Organik dan Anorganik Menggunakan Metode Scale-Invariant Feature Transform (SIFT)
+
+2. Analisis Objek Penelitian
+Pemilihan objek didasarkan pada variasi fitur morfologi dan tekstur untuk menguji keandalan algoritma SIFT dalam berbagai kondisi.
+
+a. Kategori Organik
+Objek organik dipilih untuk merepresentasikan tantangan pada bentuk yang tidak kaku (non-rigid) dan tekstur alami.
+- Kulit Pisang: Memiliki karakteristik bintik cokelat (stochastic textures) dan gradasi warna yang unik. SIFT digunakan untuk mengidentifikasi bintik tersebut sebagai fitur spasial yang tetap konsisten meskipun objek mengalami perubahan kelengkungan.
+- Daun Kering: Memiliki pola pertulangan daun (venation) yang sangat detail dan kontras. Struktur ini menyediakan kepadatan informasi gradien tinggi yang ideal bagi SIFT untuk menghasilkan deskriptor unik meski terjadi deformasi fisik.
+- Cangkang Telur: Fokus pada pola retakan (fracture patterns) yang tajam. SIFT memanfaatkan diskontinuitas intensitas pada retakan sebagai titik kunci (keypoints) identifikasi yang akurat.
+
+b. Kategori Anorganik
+Objek anorganik dipilih untuk merepresentasikan tantangan pada permukaan yang reflektif (reflective) serta pola desain visual yang terstruktur.
+- Botol Minuman: Objek ini merepresentasikan tantangan pada permukaan silindris dan reflektif. Penggunaan SIFT pada botol difokuskan pada area label yang mengandung logo atau tipografi. Fitur-fitur ini memberikan informasi gradien yang sangat kuat sehingga objek tetap dapat dikenali meskipun botol diputar atau dilihat dari sudut yang berbeda (viewpoint invariance).
+- Kemasan Saset: Kemasan saset biasanya memiliki desain grafis dengan saturasi warna dan kontras yang tinggi. SIFT sangat efektif pada objek jenis ini karena banyaknya titik pojok (corners) dan tepi (edges) pada desain kemasan yang dapat diekstraksi sebagai fitur pembeda yang stabil.
+- Kertas: Kertas (terutama yang berisi teks atau gambar) merupakan objek planar yang ideal untuk pengujian homografi menggunakan SIFT. Tekstur serat kertas atau karakter cetak di atasnya menyediakan fitur-fitur lokal yang melimpah untuk proses pencocokan citra secara akurat.
+
+3. Ciri atau Fitur Lebih Spesifik
+SIFT mengekstraksi fitur lokal yang memiliki karakteristik unik untuk memastikan keberhasilan pencocokan objek meskipun terjadi perubahan skala maupun sudut pandang.
+
+a. Keypoint (Deteksi Lokasi)
+SIFT mencari lokasi-lokasi dalam gambar (keypoints) yang memiliki variasi intensitas piksel yang signifikan, seperti sudut (corner), tepi (edge), atau area dengan tekstur tinggi. Titik-titik ini dipilih karena stabilitasnya yang tinggi terhadap transformasi citra.
+
+b. Deskriptor (Representasi Fitur)
+Setiap keypoint dideskripsikan menggunakan vektor 128-dimensi berdasarkan orientasi gradien piksel di sekitarnya. Vektor ini berfungsi sebagai "sidik jari" unik yang memungkinkan sistem membedakan satu fitur dengan fitur lainnya secara presisi selama proses matching.
+
+4. Flowchart Beserta Penjelasannya
+Alur kerja sistem dirancang untuk memproses gambar secara sekuensial dari pengambilan data hingga visualisasi hasil deteksi akhir.
+
+Alur Flowchart:
+[Input Gambar] --> [Grayscale] --> [Ekstraksi SIFT] --> [Feature Matching] --> [RANSAC Filter] --> [Klasifikasi (Penentuan Kategori)] --> [Bounding Box (AABB)] --> [Output Hasil]
+
+Penjelasan Alur Algoritma (Flowchart) Secara Mendalam:
+
+- a. Input Gambar (Image Acquisition):
+  Tahap awal di mana sistem menangkap data visual dari pengguna melalui antarmuka web. Gambar dapat berupa file statis (upload) maupun aliran bingkai (*frame*) dari kamera secara *real-time*. Data ini dikirim ke server dalam format array piksel yang siap untuk diolah oleh algoritma Computer Vision.
+
+- b. Grayscale Conversion (Image Preprocessing):
+  Citra berwarna (RGB) diubah menjadi skala keabuan menggunakan metode bobot Luminance:
+  Y = 0.299R + 0.587G + 0.114B
+  Tahapan ini sangat krusial karena algoritma SIFT bekerja dengan cara mendeteksi gradien (perubahan intensitas cahaya) antar piksel. Dengan mengabaikan informasi warna, sistem dapat bekerja lebih cepat dan tetap akurat karena fitur geometri objek tidak bergantung pada warna, melainkan pada struktur dan tekstur.
+
+- c. Ekstraksi SIFT (Scale-Invariant Feature Transform):
+  Sistem mengekstrak fitur unik menggunakan algoritma SIFT yang memiliki ketahanan luar biasa terhadap perubahan ukuran, rotasi, dan pencahayaan:
+  1. Scale-space Extrema Detection: Menggunakan fungsi Difference of Gaussian (DoG) untuk mendeteksi titik-titik potensial pada berbagai skala:
+     D(x, y, σ) = L(x, y, kσ) - L(x, y, σ)
+     Ini memungkinkan sistem mengenali botol yang sama meskipun jaraknya jauh (kecil) atau dekat (besar).
+  2. Keypoint Localization: Menyaring titik-titik yang tidak stabil (seperti titik di area dengan kontras rendah) untuk memastikan hanya fitur yang paling kuat yang diambil.
+  3. Orientation Assignment: Memberikan nilai arah (orientasi) pada setiap titik kunci berdasarkan gradien lokal, sehingga objek tetap dikenali meskipun dalam posisi miring atau terbalik.
+  4. Keypoint Descriptor: Mengonversi informasi di sekitar titik kunci menjadi vektor 128-dimensi yang berfungsi sebagai sidik jari unik untuk setiap fitur.
+
+- d. Feature Matching & Lowe's Ratio Test:
+  Deskriptor dari gambar input dibandingkan dengan deskriptor yang ada pada dataset menggunakan jarak Euclidean. Untuk membuang kecocokan palsu, diterapkan Lowe's Ratio Test:
+  Ratio = Jarak(Kecocokan_Terbaik) / Jarak(Kecocokan_Kedua) < 0.75
+  Jika rasio jarak antara kandidat pertama dan kedua cukup besar (di bawah 0.75), maka titik tersebut dianggap sebagai fitur yang unik dan autentik milik objek tersebut.
+
+- e. Iterative RANSAC Filter (Deteksi Multi-Objek):
+  Setelah mendapatkan kumpulan titik yang cocok, sistem menjalankan filtrasi RANSAC secara iteratif untuk memisahkan *inliers* dari *outliers*. Berbeda dengan RANSAC standar yang hanya mendeteksi satu objek, sistem ini akan mengekstrak matriks transformasi untuk objek pertama, menghapus titik *inliers* miliknya dari memori, lalu memutar ulang RANSAC pada sisa titik (titik sisa) untuk menemukan objek kedua, ketiga, dan seterusnya dari template yang sama.
+
+- f. Klasifikasi, Threshold Validation, & NMS (Non-Maximum Suppression):
+  Sistem melakukan validasi statistik dan penyaringan multi-objek:
+  1. Threshold Check: Setiap kandidat objek wajib memiliki Inliers >= 10 dan luas area batas >= 500 piksel agar dianggap autentik.
+  2. Intersection over Union (IoU) NMS: Seluruh kandidat objek yang lolos digabungkan dan diurutkan. Sistem menerapkan algoritma NMS dengan batas toleransi tumpang tindih (IoU threshold) sebesar 0.4. Jika ada dua deteksi yang menumpuk di lokasi fisik yang sama, deteksi dengan inliers terlemah akan dibuang. Ini menghasilkan deteksi multi-objek (berbeda maupun identik) yang bersih dari duplikasi.
+
+- g. Bounding Box (Axis-Aligned Bounding Box - AABB):
+  Untuk menandai lokasi objek, digunakan metode AABB yang jauh lebih stabil dibandingkan matriks perspektif biasa. Sistem mencari batas koordinat ekstrem dari seluruh titik *inliers* yang valid. Pada tahap ini, sistem menerapkan margin tambahan secara otomatis untuk memastikan kotak pembatas tidak hanya mengunci di bagian tengah fitur objek, melainkan mampu membungkus seluruh fisik sampah secara luas, tegak lurus, dan stabil.
+
+- h. Output Hasil & Analisis Detail:
+  Hasil akhir dikirim kembali ke pengguna dalam dua bentuk:
+  1. Visualisasi Langsung: Gambar dengan kotak pembatas berwarna (Hijau untuk Organik, Oranye untuk Anorganik).
+  2. Laporan Analisis: Halaman detail yang membedah visualisasi setiap langkah (Grayscale, Keypoints, Matching, dan RANSAC) untuk kebutuhan transparansi data dan edukasi pengguna.
+
+
+5. Rencana Metode yang Digunakan Setiap Proses
+- Persiapan & Caching Dataset: 
+  Sistem tidak melakukan ekstraksi fitur secara berulang setiap kali ada input. Sebaliknya, fitur SIFT (titik kunci dan deskriptor) dari seluruh dataset referensi diekstraksi satu kali saat server pertama kali dijalankan (*startup*) dan disimpan di dalam memori (*RAM*). Teknik *caching* ini secara drastis mengurangi latensi, memungkinkan pencocokan fitur berlangsung hampir seketika (sub-detik) bahkan dengan dataset yang besar.
+
+- Ekstraksi Fitur & Matching:
+  Sistem mengimplementasikan algoritma SIFT melalui pustaka OpenCV untuk menghasilkan deskriptor yang tangguh. Untuk proses pencocokan, digunakan `cv2.BFMatcher` dengan parameter k-NN (*k-Nearest Neighbors*). Metode ini dipilih karena memberikan keseimbangan terbaik antara akurasi dan kecepatan untuk dataset objek sampah yang memiliki variasi tekstur beragam.
+
+- Lokalisasi & Visualisasi Dinamis:
+  Untuk penandaan posisi objek, sistem meninggalkan metode matriks perspektif tradisional yang seringkali tidak stabil. Sebagai gantinya, digunakan teknik **Axis-Aligned Bounding Box (AABB)** yang dikombinasikan dengan perhitungan margin dinamis. Metode ini menjamin kotak deteksi tetap tegak lurus (ortogonal) terhadap bingkai gambar, memberikan visualisasi yang bersih dan profesional. Selain itu, integrasi Laman Analisis Detail memastikan setiap tahap Computer Vision (Grayscale, Keypoints, Matching, hingga RANSAC) dapat diaudit secara visual oleh pengguna.
+
+- Arsitektur Web Framework:
+  Backend dibangun menggunakan **Flask**, sebuah micro-framework Python yang efisien untuk menangani permintaan API dan pemrosesan citra. Di sisi antarmuka, sistem menggunakan standar HTML5/CSS3 dengan tema **Glassmorphism** untuk menciptakan pengalaman pengguna yang modern, premium, dan responsif di berbagai perangkat.
+
+6. Pembagian Tugas (Tim 4 Anggota)
+- Anggota 1 (Backend & Computer Vision Engineer):
+  Bertanggung jawab atas pengembangan inti algoritma pengolahan citra. Tugas meliputi implementasi detektor SIFT, konfigurasi parameter k-NN Matching, optimasi filter RANSAC untuk membuang *outliers*, serta perancangan logika lokalisasi menggunakan metode Axis-Aligned Bounding Box (AABB) dengan margin dinamis.
+
+- Anggota 2 (Backend & API Developer):
+  Bertanggung jawab atas arsitektur server dan aliran data. Tugas meliputi pengembangan server menggunakan framework Flask, perancangan sistem *caching* dataset ke memori untuk efisiensi kecepatan, pembuatan rute API untuk proses deteksi dan analisis detail, serta memastikan integrasi data antara *core engine* CV dengan antarmuka web.
+
+- Anggota 3 (Frontend Developer & UI Architect):
+  Bertanggung jawab atas desain antarmuka dan visualisasi infrastruktur sistem. Tugas meliputi perancangan layout responsif bertema Glassmorphism, pembuatan diagram alur (*flowchart*) aplikasi, visualisasi arsitektur sistem, serta pengembangan fitur akses kamera dan visualisasi hasil analisis SIFT di sisi pengguna.
+
+- Anggota 4 (Data Collector & System Documenter):
+  Bertanggung jawab atas aset data dan dokumentasi teknis proyek. Tugas meliputi pengumpulan dataset, pengelolaan *environment* pengembangan, penyusunan laporan teknis dan manual sistem, serta melakukan pengujian kualitas (*Quality Assurance*) untuk memastikan sistem bekerja stabil di berbagai skenario lingkungan.
+
+7. Kebutuhan Lingkungan Pengembangan
+Untuk menjalankan sistem deteksi ini, diperlukan lingkungan pengembangan dengan spesifikasi minimal sebagai berikut:
+- Bahasa Pemrograman: Python 3.8+
+- Library Utama:
+  - OpenCV (`opencv-python`): Untuk pemrosesan citra dan implementasi algoritma SIFT.
+  - NumPy: Untuk manipulasi array matriks gambar dan perhitungan numerik.
+- Dataset: Kumpulan gambar template (organik dan anorganik) yang disimpan dalam folder terstruktur untuk proses caching fitur.
+

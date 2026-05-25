@@ -1,0 +1,49 @@
+LAPORAN KUALITAS DATASET — NetraDetTrash
+============================================================
+
+Objek    : Cangkang Telur (organik)
+Gambar   : 15
+KP rata  : 66
+Match rata: 9.3
+Skor     : 27/100
+Status   : PERLU PERBAIKAN
+----------------------------------------
+Objek    : Daun kering (organik)
+Gambar   : 0
+Skor     : 0/100
+Status   : PERLU PERBAIKAN
+----------------------------------------
+Objek    : kulit pisang (organik)
+Gambar   : 1
+KP rata  : 273
+Skor     : 20/100
+Status   : PERLU PERBAIKAN
+----------------------------------------
+Objek    : BotolAqua (anorganik)
+Gambar   : 7
+KP rata  : 399
+Match rata: 14.4
+Skor     : 50/100
+Status   : CUKUP
+----------------------------------------
+Objek    : Kopi Kapal Api (anorganik)
+Gambar   : 3
+KP rata  : 500
+Match rata: 107.0
+Skor     : 60/100
+Status   : CUKUP
+----------------------------------------
+Objek    : Teh Pucuk Harum (anorganik)
+Gambar   : 3
+KP rata  : 500
+Match rata: 45.0
+Skor     : 60/100
+Status   : CUKUP
+----------------------------------------
+Objek    : shampoo (anorganik)
+Gambar   : 15
+KP rata  : 411
+Match rata: 43.0
+Skor     : 80/100
+Status   : BAIK
+----------------------------------------

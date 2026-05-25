@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detail Analisis SIFT - NetraDetTrash</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/analysis.css') }}">
+</head>
+<body>
+
+    <nav class="top-nav">
+        <a href="/" class="back-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            Kembali ke Deteksi
+        </a>
+        <div class="logo">NetraDet<span>Trash</span></div>
+    </nav>
+
+    <div class="container">
+        <header class="page-header">
+            <h1>Laporan Analisis Sistem</h1>
+            <p>Jejak rekam ekstraksi fitur SIFT dan verifikasi geometri secara mendalam.</p>
+        </header>
+
+        <div class="step-card">
+            <div class="step-header">
+                <div class="step-num">1</div>
+                <h2 class="step-title">Ekstraksi Titik Kunci (Keypoints)</h2>
+            </div>
+            <p class="step-desc">Gambar input diproses awal dengan CLAHE. SIFT mengekstraksi titik-titik unik yang tahan terhadap perubahan skala dan rotasi.</p>
+            <div class="img-showcase">
+                <img src="data:image/jpeg;base64,{{ kp_b64 }}" class="zoomable" loading="lazy" onclick="openLightbox(this.src)" alt="Visualisasi SIFT Keypoints">
+                <div style="margin-top: 1.5rem;">
+                    <span class="metric-badge">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        Terdeteksi {{ total_kp }} Keypoints
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="step-card">
+            <div class="step-header">
+                <div class="step-num">2</div>
+                <h2 class="step-title">Pencocokan Fitur & Uji Rasio</h2>
+            </div>
+            <p class="step-desc">Deskriptor dicocokkan dengan pustaka dataset. Sistem menggunakan Lowe's Ratio Test untuk membuang kecocokan meragukan (noise). <strong>(Klik gambar untuk memperbesar garis pencocokan)</strong>.</p>
+            
+            {% if details %}
+                {% for item in details %}
+                <div class="match-data-box {% if item.category == 'organik' %}organik{% else %}anorganik{% endif %}">
+                    <div class="match-data-header">
+                        <h4>Objek Dikenali: {{ item.item }}</h4>
+                        <span class="tag {% if item.category == 'organik' %}organik{% else %}anorganik{% endif %}">
+                            {{ item.category }}
+                        </span>
+                    </div>
+                    
+                    <div class="metrics-grid">
+                        <div class="metric-item"><span>Titik Cocok</span><strong>{{ item.inliers }} Inliers</strong></div>
+                        <div class="metric-item"><span>Dataset</span><strong>{{ item.kp_template_cnt }} KP</strong></div>
+                        <div class="metric-item"><span>Presisi</span><strong>{{ item.precision }}</strong></div>
+                        <div class="metric-item"><span>Recall</span><strong>{{ item.recall }}</strong></div>
+                        <div class="metric-item"><span>F1-Score</span><strong>{{ item.f1_score }}</strong></div>
+                        <div class="metric-item"><span>Keyakinan</span><strong>{{ item.confidence }}</strong></div>
+                    </div>
+
+                    <div class="img-showcase" style="background: #1e293b; cursor: zoom-in;">
+                        <span class="img-caption" style="color: #cbd5e1; margin-top:0; margin-bottom: 10px; font-weight: normal; font-size: 0.8rem;">Visualisasi Garis Relasi (Template ↔ Input)</span>
+                        <img src="data:image/jpeg;base64,{{ item.match_b64 }}" class="zoomable" loading="lazy" onclick="openLightbox(this.src)" alt="Matches">
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert-box empty">
+                    <p style="margin: 0; font-weight: 500;">Sistem tidak menemukan pola yang cukup kuat untuk dicocokkan dengan dataset yang ada.</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="step-card">
+            <div class="step-header">
+                <div class="step-num">3</div>
+                <h2 class="step-title">Verifikasi Geometri (RANSAC)</h2>
+            </div>
+            <p class="step-desc">Sistem menyaring ulang titik menggunakan algoritma RANSAC untuk membuang anomali spasial dan membangun Matriks Homografi.</p>
+            
+            <div class="alert-box">
+                <div style="font-size: 1.5rem;">✅</div>
+                <div>
+                    <h4 style="margin: 0 0 5px 0; color: #065f46;">Verifikasi Lulus</h4>
+                    <p style="margin: 0; font-size: 0.9rem; color: #047857;">Titik inliers konsisten secara matematis dan membentuk area objek.</p>
+                </div>
+            </div>
+
+            <div class="img-showcase">
+                <img src="data:image/jpeg;base64,{{ final_b64 }}" class="zoomable" loading="lazy" onclick="openLightbox(this.src)" alt="Deteksi Final">
+                <span class="img-caption">Hasil pemetaan objek akhir</span>
+            </div>
+        </div>
+        
+        <div class="bottom-action">
+            <a href="/" class="btn-primary-large">Mulai Deteksi Gambar Baru</a>
+        </div>
+
+        <footer style="text-align: center; color: var(--text-muted); font-size: 0.9rem; margin-top: 2rem; padding-bottom: 2rem;">
+            &copy; 2026 NetraDetTrash Analytics Engine. Dibuat untuk pemilahan cerdas.
+        </footer>
+    </div>
+
+    <div id="lightboxModal" class="lightbox-modal" onclick="closeLightbox()">
+        <span class="lightbox-close">&times;</span>
+        <img class="lightbox-content" id="lightboxImg">
+    </div>
+
+    <script>
+        function openLightbox(imgSrc) {
+            document.getElementById('lightboxModal').style.display = "flex";
+            document.getElementById('lightboxImg').src = imgSrc;
+            document.body.style.overflow = 'hidden'; // Mencegah scroll di background
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightboxModal').style.display = "none";
+            document.body.style.overflow = 'auto'; // Mengembalikan scroll
+        }
+        
+        // Tutup jika tombol ESC ditekan
+        document.addEventListener('keydown', function(event){
+            if(event.key === "Escape") closeLightbox();
+        });
+    </script>
+</body>
+</html>
