@@ -200,7 +200,6 @@
                 <div class="tab-nav">
                     <button class="tab-btn active" onclick="switchTab(event, 'upload')">Upload File</button>
                     <button class="tab-btn" onclick="switchTab(event, 'capture')">Kamera Web</button>
-                    <button class="tab-btn" onclick="switchTab(event, 'realtime')">Realtime Cam</button>
                 </div>
 
                 <div id="upload-tab" class="input-area">
@@ -219,16 +218,6 @@
                         <video id="camera-preview" autoplay playsinline></video>
                         <canvas id="camera-canvas" class="hidden"></canvas>
                         <button class="btn-action" id="btn-capture" type="button">Ambil Foto</button>
-                    </div>
-                </div>
-
-                <div id="realtime-tab" class="input-area hidden">
-                    <div class="camera-container">
-                        <img id="realtime-preview" src="" alt="Realtime Offline">
-                        <div style="display: flex; gap: 1rem;">
-                            <button class="btn-action green" id="btn-start-realtime" onclick="startRealtime()" type="button" style="flex:1;">Mulai</button>
-                            <button class="btn-action hidden" id="btn-stop-realtime" onclick="stopRealtime()" type="button" style="flex:1; background:#ef4444;">Stop</button>
-                        </div>
                     </div>
                 </div>
 
@@ -349,7 +338,6 @@
         const canvas = document.getElementById('camera-canvas');
         const captureImageData = document.getElementById('capture-image-data');
         const captureForm = document.getElementById('analyze-capture-form');
-        const realtimePreview = document.getElementById('realtime-preview');
         
         let captureStream = null;
         let lastInputMode = null;
@@ -364,7 +352,6 @@
             document.getElementById(tabId + '-tab').classList.remove('hidden');
 
             if (tabId === 'capture') startCaptureCamera(); else stopCaptureCamera();
-            if (tabId !== 'realtime') stopRealtime();
         }
 
         // 2. DRAG AND DROP HANDLER
@@ -428,18 +415,6 @@
             formData.append('image', base64Data);
             await sendRequest('/api/analyze_base64', { method: 'POST', body: formData });
         });
-
-        function startRealtime() {
-            realtimePreview.src = '/video_feed';
-            document.getElementById('btn-start-realtime').classList.add('hidden');
-            document.getElementById('btn-stop-realtime').classList.remove('hidden');
-        }
-
-        function stopRealtime() {
-            realtimePreview.src = '';
-            document.getElementById('btn-start-realtime').classList.remove('hidden');
-            document.getElementById('btn-stop-realtime').classList.add('hidden');
-        }
 
         async function sendRequest(url, options) {
             loadingDiv.classList.remove('hidden');
