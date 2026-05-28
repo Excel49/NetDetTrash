@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Detail Analisis SIFT - NetraDetTrash</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     
     <link rel="stylesheet" href="{{ url_for('static', filename='css/analysis.css') }}">
 </head>
@@ -27,15 +28,15 @@
         <div class="step-card">
             <div class="step-header">
                 <div class="step-num">1</div>
-                <h2 class="step-title">Ekstraksi Titik Kunci (Keypoints)</h2>
+                <h2 class="step-title">Grayscale</h2>
             </div>
-            <p class="step-desc">Gambar input diproses awal dengan CLAHE. SIFT mengekstraksi titik-titik unik yang tahan terhadap perubahan skala dan rotasi.</p>
+            <p class="step-desc">Langkah pertama mengubah citra berwarna menjadi grayscale untuk membantu SIFT fokus pada struktur intensitas, bukan warna.</p>
             <div class="img-showcase">
-                <img src="data:image/jpeg;base64,{{ kp_b64 }}" class="zoomable" loading="lazy" onclick="openLightbox(this.src)" alt="Visualisasi SIFT Keypoints">
+                <img src="data:image/jpeg;base64,{{ gray_b64 }}" class="zoomable" loading="lazy" onclick="openLightbox(this.src)" alt="Hasil Grayscale">
                 <div style="margin-top: 1.5rem;">
                     <span class="metric-badge">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                        Terdeteksi {{ total_kp }} Keypoints
+                        Grayscale sebelum CLAHE
                     </span>
                 </div>
             </div>
@@ -44,9 +45,154 @@
         <div class="step-card">
             <div class="step-header">
                 <div class="step-num">2</div>
-                <h2 class="step-title">Pencocokan Fitur & Uji Rasio</h2>
+                <h2 class="step-title">CLAHE</h2>
             </div>
-            <p class="step-desc">Deskriptor dicocokkan dengan pustaka dataset. Sistem menggunakan Lowe's Ratio Test untuk membuang kecocokan meragukan (noise). <strong>(Klik gambar untuk memperbesar garis pencocokan)</strong>.</p>
+            <p class="step-desc">Adaptive histogram equalization meningkatkan kontras lokal agar fitur SIFT dapat dideteksi lebih stabil pada area gelap atau kontras rendah.</p>
+            <div class="img-showcase">
+                <img src="data:image/jpeg;base64,{{ clahe_b64 }}" class="zoomable" loading="lazy" onclick="openLightbox(this.src)" alt="Hasil CLAHE">
+                <div style="margin-top: 1.5rem;">
+                    <span class="metric-badge">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        Hasil CLAHE
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="step-card">
+            <div class="step-header">
+                <div class="step-num">3</div>
+                <h2 class="step-title">Gaussian Blur</h2>
+            </div>
+            <p class="step-desc">Blur ringan mengurangi noise halus sehingga SIFT dapat bekerja pada pola fitur yang lebih stabil.</p>
+            <div class="img-showcase">
+                <img src="data:image/jpeg;base64,{{ blur_b64 }}" class="zoomable" loading="lazy" onclick="openLightbox(this.src)" alt="Hasil Gaussian Blur">
+                <div style="margin-top: 1.5rem;">
+                    <span class="metric-badge">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        Hasil Gaussian blur
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="step-card">
+            <div class="step-header">
+                <div class="step-num" style="background: linear-gradient(135deg, #10b981, #6366f1);">📊</div>
+                <h2 class="step-title">Grafik Distribusi Intensitas Piksel</h2>
+            </div>
+            <p class="step-desc">Perbandingan distribusi gradien intensitas cahaya pada setiap tahap preprocessing. Grafik ini menunjukkan bagaimana CLAHE memeratakan histogram dan Gaussian Blur menghaluskan kontras.</p>
+            
+            <div class="chart-container" style="position: relative; background: #f8fafc; border-radius: 16px; padding: 1.5rem; border: 1px solid var(--border-color); margin-bottom: 1.5rem;">
+                <canvas id="histogramChart" style="width: 100%; max-height: 380px;"></canvas>
+            </div>
+
+            <div class="metrics-grid">
+                <div class="metric-item">
+                    <span>Grayscale</span>
+                    <strong style="color: #64748b;">μ={{ stats_prep.gray.mean }}, σ={{ stats_prep.gray.std }}</strong>
+                </div>
+                <div class="metric-item">
+                    <span>Setelah CLAHE</span>
+                    <strong style="color: #10b981;">μ={{ stats_prep.clahe.mean }}, σ={{ stats_prep.clahe.std }}</strong>
+                </div>
+                <div class="metric-item">
+                    <span>Setelah Gaussian Blur</span>
+                    <strong style="color: #6366f1;">μ={{ stats_prep.blur.mean }}, σ={{ stats_prep.blur.std }}</strong>
+                </div>
+            </div>
+
+            <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <span class="metric-badge" style="background: #f1f5f9; color: #64748b; font-weight: 500; font-size: 0.8rem;">μ = Rata-rata Intensitas</span>
+                <span class="metric-badge" style="background: #f1f5f9; color: #64748b; font-weight: 500; font-size: 0.8rem;">σ = Standar Deviasi (Kontras)</span>
+            </div>
+        </div>
+
+        <div class="step-card">
+            <div class="step-header">
+                <div class="step-num">4</div>
+                <h2 class="step-title">Ekstraksi Fitur SIFT (4 Tahapan Utama)</h2>
+            </div>
+            <p class="step-desc">Sistem menggunakan pustaka OpenCV untuk mengekstrak fitur SIFT (*Scale-Invariant Feature Transform*). Proses ini terdiri dari 4 tahapan matematis untuk mendapatkan deskriptor yang tahan terhadap perubahan ukuran dan rotasi.</p>
+
+            <div style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 2rem;">
+                <!-- TAHAP 1 -->
+                <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem;">
+                    <h3 style="margin-top: 0; color: var(--text-main); display: flex; align-items: center; gap: 10px;">
+                        <span style="background: var(--primary); color: white; border-radius: 50%; width: 24px; height: 24px; display: inline-flex; justify-content: center; align-items: center; font-size: 0.85rem;">1</span> 
+                        Scale-Space Extrema (Difference of Gaussian)
+                    </h3>
+                    <p style="color: var(--text-muted); font-size: 0.95rem;">Citra di-blur beberapa kali (skala) dan dikurangkan satu sama lain. Titik piksel yang paling menonjol (ekstremum lokal) di antara skala-skala ini akan menjadi kandidat awal.</p>
+                    <div style="background: #e2e8f0; padding: 0.8rem; border-radius: 8px; font-family: monospace; font-size: 0.9rem; color: #334155; margin-bottom: 1rem;">
+                        D(x,y,σ) = L(x,y,kσ) - L(x,y,σ)
+                    </div>
+                    <div class="img-showcase" style="background: #1e293b; padding: 0.5rem;">
+                        <img src="data:image/jpeg;base64,{{ dog_b64 }}" class="zoomable" loading="lazy" onclick="openLightbox(this.src)" alt="Difference of Gaussian Heatmap" style="border-radius: 8px; max-height: 250px;">
+                    </div>
+                </div>
+
+                <!-- TAHAP 2 -->
+                <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem;">
+                    <h3 style="margin-top: 0; color: var(--text-main); display: flex; align-items: center; gap: 10px;">
+                        <span style="background: var(--primary); color: white; border-radius: 50%; width: 24px; height: 24px; display: inline-flex; justify-content: center; align-items: center; font-size: 0.85rem;">2</span> 
+                        Lokalisasi Titik Kunci (Keypoint Localization)
+                    </h3>
+                    <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 0;">Sistem membuang kandidat titik yang kontrasnya rendah (<code>contrastThreshold=0.04</code>) atau hanya berupa tepi/garis datar (*edge response*). Pemfilteran tepi menggunakan rasio nilai eigen dari <strong>Matriks Hessian</strong> (<code>edgeThreshold=10</code>). Hasilnya adalah titik-titik sudut (*corners*) yang sangat stabil terhadap noise dan perubahan pencahayaan.</p>
+                </div>
+
+                <!-- TAHAP 3 -->
+                <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem;">
+                    <h3 style="margin-top: 0; color: var(--text-main); display: flex; align-items: center; gap: 10px;">
+                        <span style="background: var(--primary); color: white; border-radius: 50%; width: 24px; height: 24px; display: inline-flex; justify-content: center; align-items: center; font-size: 0.85rem;">3</span> 
+                        Penugasan Orientasi (Orientation Assignment)
+                    </h3>
+                    <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 0;">Agar titik kenal fitur ini tidak rusak walau gambar diputar (*rotation invariant*), setiap titik dihitung histogram gradiennya pada radius sekitarnya. Titik kemudian "ditugaskan" sebuah arah/sudut paling dominan. (Terlihat sebagai garis jari-jari pada lingkaran di visualisasi akhir).</p>
+                </div>
+
+                <!-- TAHAP 4 -->
+                <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem;">
+                    <h3 style="margin-top: 0; color: var(--text-main); display: flex; align-items: center; gap: 10px;">
+                        <span style="background: var(--primary); color: white; border-radius: 50%; width: 24px; height: 24px; display: inline-flex; justify-content: center; align-items: center; font-size: 0.85rem;">4</span> 
+                        Deskriptor Titik Kunci (128-Dimensi) & Perbandingan Preprocessing
+                    </h3>
+                    <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1rem;">Untuk setiap *keypoint* yang bertahan, area 16x16 piksel di sekitarnya dibagi menjadi 16 blok (4x4). Tiap blok dihitung histogram gradiennya dalam 8 arah sehingga diperoleh deskriptor **128-dimensi**. Vektor inilah yang akan dicocokkan dengan dataset nantinya.</p>
+                    
+                    <h4 style="margin-top: 1.5rem; margin-bottom: 0.8rem; color: var(--text-main); font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Visual Perbandingan: Dampak Preprocessing pada Deteksi Fitur SIFT</h4>
+                    <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+                        <!-- Citra Tanpa Preprocessing -->
+                        <div class="img-showcase" style="flex: 1; min-width: 280px; padding: 0.8rem; background: #fff; border: 1px solid var(--border-color); border-radius: 12px;">
+                            <span class="img-caption" style="margin-top: 0; margin-bottom: 10px; font-weight: 700; color: #ef4444;">1. Citra Asli (Tanpa Preprocessing)</span>
+                            <img src="data:image/jpeg;base64,{{ kp_raw_b64 }}" class="zoomable" loading="lazy" onclick="openLightbox(this.src)" alt="Keypoints Tanpa Preprocessing" style="max-height: 250px;">
+                            <div style="margin-top: 0.8rem;">
+                                <span class="metric-badge" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.2);">
+                                    Terdeteksi {{ total_kp_raw }} Keypoints Mentah
+                                </span>
+                            </div>
+                            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; line-height: 1.4; margin-bottom: 0;">*Keypoints pada gambar mentah mengandung noise dari background dan rentan terhadap variasi cahaya lokal.*</p>
+                        </div>
+                        
+                        <!-- Citra Dengan Preprocessing -->
+                        <div class="img-showcase" style="flex: 1; min-width: 280px; padding: 0.8rem; background: #fff; border: 1px solid var(--border-color); border-radius: 12px;">
+                            <span class="img-caption" style="margin-top: 0; margin-bottom: 10px; font-weight: 700; color: #10b981;">2. Setelah Preprocessing (CLAHE + Blur)</span>
+                            <img src="data:image/jpeg;base64,{{ kp_b64 }}" class="zoomable" loading="lazy" onclick="openLightbox(this.src)" alt="Keypoints Dengan Preprocessing" style="max-height: 250px;">
+                            <div style="margin-top: 0.8rem;">
+                                <span class="metric-badge" style="background: rgba(16, 185, 129, 0.1); color: #10b981; border-color: rgba(16, 185, 129, 0.2);">
+                                    Terdeteksi {{ total_kp }} Keypoints Stabil
+                                </span>
+                            </div>
+                            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; line-height: 1.4; margin-bottom: 0;">*CLAHE menyeimbangkan kontras lokal dan Gaussian Blur menyingkirkan noise halus, menghasilkan titik kunci yang presisi.*</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="step-card">
+            <div class="step-header">
+                <div class="step-num">5</div>
+                <h2 class="step-title">Pipeline Pencocokan & Verifikasi Geometri</h2>
+            </div>
+            <p class="step-desc">Proses ini memisahkan titik yang cocok (Matches) menggunakan dua tahap filter: <strong>Lowe's Ratio Test</strong> (untuk membuang noise) dan <strong>RANSAC</strong> (untuk memastikan konsistensi bentuk secara spasial).</p>
             
             {% if details %}
                 {% for item in details %}
@@ -58,18 +204,51 @@
                         </span>
                     </div>
                     
-                    <div class="metrics-grid">
-                        <div class="metric-item"><span>Titik Cocok</span><strong>{{ item.inliers }} Inliers</strong></div>
-                        <div class="metric-item"><span>Dataset</span><strong>{{ item.kp_template_cnt }} KP</strong></div>
-                        <div class="metric-item"><span>Presisi</span><strong>{{ item.precision }}</strong></div>
-                        <div class="metric-item"><span>Recall</span><strong>{{ item.recall }}</strong></div>
-                        <div class="metric-item"><span>F1-Score</span><strong>{{ item.f1_score }}</strong></div>
-                        <div class="metric-item"><span>Keyakinan</span><strong>{{ item.confidence }}</strong></div>
+                    <div style="background: #f8fafc; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid #e2e8f0;">
+                        <h5 style="margin-top: 0; margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase;">1. Alur Penyaringan Titik (Keypoints)</h5>
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                            
+                            <div style="text-align: center; flex: 1;">
+                                <div style="font-size: 1.5rem; font-weight: 800; color: var(--text-main);">{{ item.kp_template_cnt }}</div>
+                                <div style="font-size: 0.8rem; color: var(--text-muted);">Total KP Template</div>
+                            </div>
+                            
+                            <div style="color: #cbd5e1;">➔</div>
+                            
+                            <div style="text-align: center; flex: 1; background: #fff; padding: 0.5rem; border-radius: 8px; border: 1px dashed #cbd5e1;">
+                                <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 3px;">Lowe Ratio Test</div>
+                                <div style="font-size: 1.2rem; font-weight: 700; color: #3b82f6;">{{ item.good_matches }}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">Good Matches</div>
+                            </div>
+
+                            <div style="color: #cbd5e1;">➔</div>
+
+                            <div style="text-align: center; flex: 1; background: #ecfdf5; padding: 0.5rem; border-radius: 8px; border: 1px solid #a7f3d0;">
+                                <div style="font-size: 0.75rem; font-weight: 600; color: var(--primary); margin-bottom: 3px;">Filter RANSAC ({{ item.ransac_rate }})</div>
+                                <div style="font-size: 1.5rem; font-weight: 800; color: var(--primary);">{{ item.inliers }}</div>
+                                <div style="font-size: 0.75rem; color: var(--primary);">Valid Inliers</div>
+                            </div>
+
+                        </div>
                     </div>
 
-                    <div class="img-showcase" style="background: #1e293b; cursor: zoom-in;">
-                        <span class="img-caption" style="color: #cbd5e1; margin-top:0; margin-bottom: 10px; font-weight: normal; font-size: 0.8rem;">Visualisasi Garis Relasi (Template ↔ Input)</span>
-                        <img src="data:image/jpeg;base64,{{ item.match_b64 }}" class="zoomable" loading="lazy" onclick="openLightbox(this.src)" alt="Matches">
+                    <h5 style="margin-top: 0; margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase;">2. Hasil Penilaian Akhir</h5>
+                    <div class="metrics-grid">
+                        <div class="metric-item"><span>Confidence Matching</span><strong>{{ item.confidence_match }}</strong></div>
+                        <div class="metric-item"><span>Cakupan Fitur</span><strong>{{ item.coverage_fitur }}</strong></div>
+                        <div class="metric-item"><span>Skor Kemiripan</span><strong>{{ item.skor_kemiripan }}</strong></div>
+                    </div>
+
+                    <div style="display: flex; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap;">
+                        <div class="img-showcase" style="background: #1e293b; cursor: zoom-in; flex: 1; min-width: 300px;">
+                            <span class="img-caption" style="color: #cbd5e1; margin-top:0; margin-bottom: 10px; font-weight: normal; font-size: 0.8rem;">Tahap 1: Garis Lowe's Ratio Test (Good Matches)</span>
+                            <img src="data:image/jpeg;base64,{{ item.match_b64 }}" class="zoomable" loading="lazy" onclick="openLightbox(this.src)" alt="Good Matches">
+                        </div>
+                        
+                        <div class="img-showcase" style="background: #1e293b; cursor: zoom-in; flex: 1; min-width: 300px;">
+                            <span class="img-caption" style="color: #cbd5e1; margin-top:0; margin-bottom: 10px; font-weight: normal; font-size: 0.8rem;">Tahap 2: RANSAC Inliers (<span style="color:#4ade80;">Hijau</span>) vs Outliers (<span style="color:#f87171;">Merah</span>)</span>
+                            <img src="data:image/jpeg;base64,{{ item.ransac_b64 }}" class="zoomable" loading="lazy" onclick="openLightbox(this.src)" alt="RANSAC Inliers">
+                        </div>
                     </div>
                 </div>
                 {% endfor %}
@@ -82,10 +261,10 @@
 
         <div class="step-card">
             <div class="step-header">
-                <div class="step-num">3</div>
-                <h2 class="step-title">Verifikasi Geometri (RANSAC)</h2>
+                <div class="step-num">6</div>
+                <h2 class="step-title">Hasil Pemetaan Bounding Box</h2>
             </div>
-            <p class="step-desc">Sistem menyaring ulang titik menggunakan algoritma RANSAC untuk membuang anomali spasial dan membangun Matriks Homografi.</p>
+            <p class="step-desc">Berdasarkan titik inliers yang lolos dari RANSAC, sistem menarik garis bounding box (kotak) di sekitar area objek.</p>
             
             <div class="alert-box">
                 <div style="font-size: 1.5rem;">✅</div>
@@ -119,18 +298,155 @@
         function openLightbox(imgSrc) {
             document.getElementById('lightboxModal').style.display = "flex";
             document.getElementById('lightboxImg').src = imgSrc;
-            document.body.style.overflow = 'hidden'; // Mencegah scroll di background
+            document.body.style.overflow = 'hidden';
         }
 
         function closeLightbox() {
             document.getElementById('lightboxModal').style.display = "none";
-            document.body.style.overflow = 'auto'; // Mengembalikan scroll
+            document.body.style.overflow = 'auto';
         }
         
-        // Tutup jika tombol ESC ditekan
         document.addEventListener('keydown', function(event){
             if(event.key === "Escape") closeLightbox();
         });
+
+        // ── Grafik Histogram Intensitas ─────────────────────────────────
+        (function() {
+            const histGray  = {{ hist_gray | safe }};
+            const histClahe = {{ hist_clahe | safe }};
+            const histBlur  = {{ hist_blur | safe }};
+
+            // Downsample 256 → 64 bin agar grafik lebih bersih
+            function downsample(arr, factor) {
+                const result = [];
+                for (let i = 0; i < arr.length; i += factor) {
+                    let sum = 0;
+                    for (let j = i; j < i + factor && j < arr.length; j++) sum += arr[j];
+                    result.push(sum);
+                }
+                return result;
+            }
+
+            const binFactor = 4;
+            const labels = Array.from({length: 256 / binFactor}, (_, i) => i * binFactor);
+            const grayData  = downsample(histGray, binFactor);
+            const claheData = downsample(histClahe, binFactor);
+            const blurData  = downsample(histBlur, binFactor);
+
+            const ctx = document.getElementById('histogramChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Grayscale (Raw)',
+                            data: grayData,
+                            borderColor: '#94a3b8',
+                            backgroundColor: 'rgba(148, 163, 184, 0.08)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            pointHoverRadius: 4
+                        },
+                        {
+                            label: 'Setelah CLAHE',
+                            data: claheData,
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                            borderWidth: 2.5,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            pointHoverRadius: 4
+                        },
+                        {
+                            label: 'Setelah Gaussian Blur',
+                            data: blurData,
+                            borderColor: '#6366f1',
+                            backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                            borderWidth: 2.5,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            pointHoverRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                padding: 20,
+                                font: { family: 'Inter', size: 12, weight: '600' }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: '#0f172a',
+                            titleFont: { family: 'Inter', size: 13, weight: '700' },
+                            bodyFont: { family: 'Inter', size: 12 },
+                            padding: 12,
+                            cornerRadius: 10,
+                            callbacks: {
+                                title: function(items) {
+                                    return 'Intensitas: ' + items[0].label + '–' + (parseInt(items[0].label) + binFactor - 1);
+                                },
+                                label: function(context) {
+                                    return '  ' + context.dataset.label + ': ' + context.parsed.y.toLocaleString() + ' piksel';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Nilai Intensitas Piksel (0 = Hitam, 255 = Putih)',
+                                font: { family: 'Inter', size: 12, weight: '600' },
+                                color: '#64748b'
+                            },
+                            grid: { display: false },
+                            ticks: {
+                                font: { family: 'Inter', size: 10 },
+                                color: '#94a3b8',
+                                maxTicksLimit: 10
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Jumlah Piksel (Frekuensi)',
+                                font: { family: 'Inter', size: 12, weight: '600' },
+                                color: '#64748b'
+                            },
+                            grid: {
+                                color: 'rgba(226, 232, 240, 0.5)',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                font: { family: 'Inter', size: 10 },
+                                color: '#94a3b8',
+                                callback: function(val) {
+                                    if (val >= 1000) return (val/1000).toFixed(1) + 'k';
+                                    return val;
+                                }
+                            },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        })();
     </script>
 </body>
 </html>

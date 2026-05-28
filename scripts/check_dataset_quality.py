@@ -102,6 +102,24 @@ def hitung_good_match(des_a, des_b, matcher):
     return good
 
 
+def hitung_preprocess_metrics(img, sift):
+    """Hitung metrik kualitas sebelum dan setelah preprocessing."""
+    raw = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    raw_kp, _ = sift.detectAndCompute(raw, None)
+    pre = preprocess_image(img)
+    pre_kp, _ = sift.detectAndCompute(pre, None)
+
+    return {
+        "raw_kp": len(raw_kp) if raw_kp is not None else 0,
+        "pre_kp": len(pre_kp) if pre_kp is not None else 0,
+        "raw_std": float(raw.std()),
+        "pre_std": float(pre.std()),
+        "raw_mean": float(raw.mean()),
+        "pre_mean": float(pre.mean()),
+        "improved": (len(pre_kp) if pre_kp is not None else 0) >= (len(raw_kp) if raw_kp is not None else 0)
+    }
+
+
 # ============================================================================
 # ANALISIS PER OBJEK
 # ============================================================================
@@ -115,12 +133,13 @@ def analisis_item(item_name, folder_path, sift, matcher):
     jumlah_img  = len(gambar_list)
 
     hasil = {
-        "item"          : item_name,
-        "jumlah_gambar" : jumlah_img,
-        "kp_per_gambar" : [],
-        "match_scores"  : [],   # intra-class: match antar sesama gambar
-        "pasang_diuji"  : 0,
-        "gambar_miskin" : [],   # gambar dengan KP < MIN_KP
+        "item"               : item_name,
+        "jumlah_gambar"      : jumlah_img,
+        "kp_per_gambar"      : [],
+        "match_scores"       : [],   # intra-class: match antar sesama gambar
+        "pasang_diuji"       : 0,
+        "gambar_miskin"      : [],   # gambar dengan KP < MIN_KP
+        "preprocess_stats"   : [],   # metrik sebelum & sesudah preprocessing
     }
 
     if jumlah_img == 0:
@@ -129,9 +148,11 @@ def analisis_item(item_name, folder_path, sift, matcher):
     # ── Ekstraksi fitur semua gambar ─────────────────────────────────────
     fitur_list = []
     for nama, img in gambar_list:
+        preprocess_info = hitung_preprocess_metrics(img, sift)
         kp, des = ekstrak_fitur(img, sift)
         n_kp    = len(kp)
         hasil["kp_per_gambar"].append(n_kp)
+        hasil["preprocess_stats"].append(preprocess_info)
         if n_kp < MIN_KP:
             hasil["gambar_miskin"].append(nama)
         fitur_list.append((nama, kp, des))
@@ -151,6 +172,38 @@ def analisis_item(item_name, folder_path, sift, matcher):
         hasil["pasang_diuji"] += 1
 
     return hasil
+
+
+def analisis_preprocessing(hasil):
+    """Ringkas metrik preprocess per objek.
+
+    Hasil berisi daftar preprocess_stats per gambar.
+    """
+    data = hasil.get("preprocess_stats", [])
+    if not data:
+        return None
+
+    raw_kp = np.array([d["raw_kp"] for d in data], dtype=np.float32)
+    pre_kp = np.array([d["pre_kp"] for d in data], dtype=np.float32)
+    raw_std = np.array([d["raw_std"] for d in data], dtype=np.float32)
+    pre_std = np.array([d["pre_std"] for d in data], dtype=np.float32)
+
+    if len(raw_kp) == 0:
+        return None
+
+    improved_count = sum(1 for d in data if d["improved"])
+
+    return {
+        "raw_kp_avg"        : float(np.mean(raw_kp)),
+        "pre_kp_avg"        : float(np.mean(pre_kp)),
+        "kp_gain"           : float(np.mean(pre_kp - raw_kp)),
+        "kp_gain_pct"       : float(np.mean((pre_kp - raw_kp) / (raw_kp + 1e-6))),
+        "raw_std_avg"       : float(np.mean(raw_std)),
+        "pre_std_avg"       : float(np.mean(pre_std)),
+        "contrast_gain"     : float(np.mean(pre_std - raw_std)),
+        "improved_images"   : improved_count,
+        "total_images"      : len(data),
+    }
 
 
 # ============================================================================
@@ -276,6 +329,12 @@ def main():
             else:
                 print(f"  Intra-match: tidak cukup gambar")
 
+            pp = analisis_preprocessing(hasil)
+            if pp is not None:
+                print(f"  Preprocess: raw KP rata={pp['raw_kp_avg']:.0f} -> pre KP rata={pp['pre_kp_avg']:.0f} "
+                      f"(+{pp['kp_gain_pct']*100:.0f}%), kontras σ {pp['raw_std_avg']:.1f}->{pp['pre_std_avg']:.1f} "
+                      f"[improve {pp['improved_images']}/{pp['total_images']}]")
+
             if hasil["gambar_miskin"]:
                 print(f"  {KUNING}[!] {len(hasil['gambar_miskin'])} gambar miskin KP (<{MIN_KP}): "
                       f"{', '.join(hasil['gambar_miskin'][:3])}{'...' if len(hasil['gambar_miskin'])>3 else ''}{RESET}")
@@ -326,9 +385,16 @@ def main():
             f.write(f"Objek    : {h['item']} ({h['kategori']})\n")
             f.write(f"Gambar   : {h['jumlah_gambar']}\n")
             if h["kp_per_gambar"]:
-                f.write(f"KP rata  : {np.mean(h['kp_per_gambar']):.0f}\n")
+                f.write(f"KP rata   : {np.mean(h['kp_per_gambar']):.0f}\n")
             if h["match_scores"]:
                 f.write(f"Match rata: {np.mean(h['match_scores']):.1f}\n")
+            if h.get("preprocess_stats"):
+                pp = analisis_preprocessing(h)
+                if pp is not None:
+                    f.write(f"Preprocess: raw KP {pp['raw_kp_avg']:.0f} -> pre KP {pp['pre_kp_avg']:.0f} "
+                            f"(+{pp['kp_gain_pct']*100:.0f}%)\n")
+                    f.write(f"           kontras σ {pp['raw_std_avg']:.1f} -> {pp['pre_std_avg']:.1f} "
+                            f"[improve {pp['improved_images']}/{pp['total_images']}]\n")
             f.write(f"Skor     : {h['skor']}/100\n")
             f.write(f"Status   : {h['status']}\n")
             f.write("-" * 40 + "\n")

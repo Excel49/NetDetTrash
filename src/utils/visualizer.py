@@ -64,6 +64,25 @@ def draw_sift_matches(result_item, input_img):
     )
     return match_img
 
+def draw_ransac_inliers_outliers(result_item, input_img):
+    """Menggambar inliers (garis hijau) dan outliers (garis merah) yang dibuang RANSAC."""
+    match_img = cv2.drawMatches(
+        result_item['dataset_img'], result_item['kp_dataset'],
+        input_img, result_item['kp_input'],
+        result_item['matches'], None,
+        matchColor=(0, 255, 0),
+        flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
+    )
+    if 'outliers' in result_item and result_item['outliers']:
+        match_img = cv2.drawMatches(
+            result_item['dataset_img'], result_item['kp_dataset'],
+            input_img, result_item['kp_input'],
+            result_item['outliers'], match_img,
+            matchColor=(0, 0, 255),
+            flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS | cv2.DRAW_MATCHES_FLAGS_DRAW_OVER_OUTIMG
+        )
+    return match_img
+
 def process_classification_result(img, results):
     if not results:
         return {

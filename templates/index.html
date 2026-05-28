@@ -260,9 +260,9 @@
                     </div>
 
                     <div class="metrics-row">
-                        <div class="metric-item"><span>Presisi</span><strong id="met-p">0%</strong></div>
-                        <div class="metric-item"><span>Recall</span><strong id="met-r">0%</strong></div>
-                        <div class="metric-item"><span>F1 Score</span><strong id="met-f">0%</strong></div>
+                        <div class="metric-item"><span>Confidence</span><strong id="met-p">0%</strong></div>
+                        <div class="metric-item"><span>Cakupan Fitur</span><strong id="met-r">0%</strong></div>
+                        <div class="metric-item"><span>Kemiripan</span><strong id="met-f">0%</strong></div>
                     </div>
 
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
@@ -469,9 +469,9 @@
             // Set Texts
             resItem.textContent = data.item;
             resInliers.textContent = data.inliers;
-            metP.textContent = data.summary_metrics.precision;
-            metR.textContent = data.summary_metrics.recall;
-            metF.textContent = data.summary_metrics.f1_score;
+            metP.textContent = data.summary_metrics.confidence_match;
+            metR.textContent = data.summary_metrics.coverage_fitur;
+            metF.textContent = data.summary_metrics.skor_kemiripan;
 
             // Set Badge
             const isOrganik = data.category.toLowerCase() === 'organik';

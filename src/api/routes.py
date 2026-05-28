@@ -3,16 +3,18 @@ import cv2
 import numpy as np
 import base64
 import os
+import json
 
 # Import modul inti
 from src.core.detector import detect_objects
 from src.core.dataset import get_sift_detector
-from src.core.preprocessor import preprocess_image
+from src.core.preprocessor import preprocess_image, preprocess_image_steps
 from src.utils.visualizer import (
     process_classification_result, 
     generate_frames, 
     encode_image_base64, 
-    draw_sift_matches
+    draw_sift_matches,
+    draw_ransac_inliers_outliers
 )
 
 main_bp = Blueprint('main', __name__)
@@ -34,17 +36,17 @@ def _decode_image_from_base64_string(image_data):
         raise ValueError('Format gambar tidak valid')
     return img
 
-def _hitung_metric_sift(result):
-    """Metrik estimasi dari kualitas matching."""
-    precision = max(0.0, min(0.999, result["confidence"] / 100))
+def _hitung_skor_matching(result):
+    """Skor kualitas matching SIFT (bukan metrik evaluasi klasifikasi formal)."""
+    confidence_match = max(0.0, min(0.999, result["confidence"] / 100))
     kp_dataset = max(1, len(result["kp_dataset"]))
-    recall = result["inliers"] / (result["inliers"] + max(1, kp_dataset - result["inliers"]) * 0.08)
-    recall = max(0.0, min(0.999, recall))
-    f1 = 0 if precision + recall == 0 else (2 * precision * recall) / (precision + recall)
+    coverage_fitur = result["inliers"] / (result["inliers"] + max(1, kp_dataset - result["inliers"]) * 0.08)
+    coverage_fitur = max(0.0, min(0.999, coverage_fitur))
+    skor_kemiripan = 0 if confidence_match + coverage_fitur == 0 else (2 * confidence_match * coverage_fitur) / (confidence_match + coverage_fitur)
     return {
-        "precision": f"{precision * 100:.1f}%",
-        "recall": f"{recall * 100:.1f}%",
-        "f1_score": f"{f1 * 100:.1f}%"
+        "confidence_match": f"{confidence_match * 100:.1f}%",
+        "coverage_fitur": f"{coverage_fitur * 100:.1f}%",
+        "skor_kemiripan": f"{skor_kemiripan * 100:.1f}%"
     }
 
 def _buat_payload_deteksi(img):
@@ -52,23 +54,23 @@ def _buat_payload_deteksi(img):
     results = detect_objects(img)
     hasil = process_classification_result(img, results)
     hasil["count"] = len(results)
-    hasil["metrics_note"] = "Estimasi berbasis matching SIFT, bukan evaluasi ground-truth manual."
+    hasil["metrics_note"] = "Skor kualitas matching SIFT, bukan metrik evaluasi klasifikasi formal (precision/recall/accuracy)."
 
     for index, result in enumerate(results):
         if index < len(hasil["matches"]):
-            hasil["matches"][index].update(_hitung_metric_sift(result))
+            hasil["matches"][index].update(_hitung_skor_matching(result))
 
     if results:
-        precision_list = [float(m["precision"].replace("%", "")) for m in hasil["matches"]]
-        recall_list = [float(m["recall"].replace("%", "")) for m in hasil["matches"]]
-        f1_list = [float(m["f1_score"].replace("%", "")) for m in hasil["matches"]]
+        confidence_list = [float(m["confidence_match"].replace("%", "")) for m in hasil["matches"]]
+        coverage_list = [float(m["coverage_fitur"].replace("%", "")) for m in hasil["matches"]]
+        kemiripan_list = [float(m["skor_kemiripan"].replace("%", "")) for m in hasil["matches"]]
         hasil["summary_metrics"] = {
-            "precision": f"{np.mean(precision_list):.1f}%",
-            "recall": f"{np.mean(recall_list):.1f}%",
-            "f1_score": f"{np.mean(f1_list):.1f}%"
+            "confidence_match": f"{np.mean(confidence_list):.1f}%",
+            "coverage_fitur": f"{np.mean(coverage_list):.1f}%",
+            "skor_kemiripan": f"{np.mean(kemiripan_list):.1f}%"
         }
     else:
-        hasil["summary_metrics"] = {"precision": "0.0%", "recall": "0.0%", "f1_score": "0.0%"}
+        hasil["summary_metrics"] = {"confidence_match": "0.0%", "coverage_fitur": "0.0%", "skor_kemiripan": "0.0%"}
 
     return hasil
 
@@ -77,17 +79,45 @@ def _render_analysis_page(img):
     Fungsi krusial untuk membongkar step-by-step proses SIFT 
     dan mengirimkannya ke analysis.html
     """
-    # Step 1: Grayscale + CLAHE (Preprocessing)
-    gray = preprocess_image(img)
+    # Preprocessing steps: grayscale, CLAHE, blur
+    gray, clahe, blur = preprocess_image_steps(img)
+    
+    # Visualisasi Tambahan: Difference of Gaussian (DoG) simulasi
+    # SIFT mencari ekstremum di ruang DoG. Kita simulasikan 1 level DoG untuk visualisasi.
+    blur1 = cv2.GaussianBlur(gray, (0, 0), 1.6)
+    blur2 = cv2.GaussianBlur(gray, (0, 0), 1.6 * 1.414) # k = sqrt(2)
+    dog = cv2.subtract(blur1, blur2)
+    dog_vis = cv2.normalize(dog, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    
     gray_b64 = encode_image_base64(gray)
+    clahe_b64 = encode_image_base64(clahe)
+    blur_b64 = encode_image_base64(blur)
+    dog_b64 = encode_image_base64(cv2.applyColorMap(dog_vis, cv2.COLORMAP_JET)) # Warnai heatmap agar jelas
 
-    # Step 2: Keypoints Detection (Untuk visualisasi web)
+    # Hitung histogram intensitas untuk grafik perbandingan preprocessing
+    hist_gray = cv2.calcHist([gray], [0], None, [256], [0, 256]).flatten().tolist()
+    hist_clahe = cv2.calcHist([clahe], [0], None, [256], [0, 256]).flatten().tolist()
+    hist_blur = cv2.calcHist([blur], [0], None, [256], [0, 256]).flatten().tolist()
+
+    # Statistik intensitas per tahap
+    stats_preprocessing = {
+        "gray":  {"mean": f"{gray.mean():.1f}",  "std": f"{gray.std():.1f}",  "min": int(gray.min()),  "max": int(gray.max())},
+        "clahe": {"mean": f"{clahe.mean():.1f}", "std": f"{clahe.std():.1f}", "min": int(clahe.min()), "max": int(clahe.max())},
+        "blur":  {"mean": f"{blur.mean():.1f}",  "std": f"{blur.std():.1f}",  "min": int(blur.min()),  "max": int(blur.max())}
+    }
+
+    # Keypoint detection pada hasil preprocessing akhir
     sift = get_sift_detector()
-    kp, _ = sift.detectAndCompute(gray, None)
+    kp, _ = sift.detectAndCompute(blur, None)
     kp_img = cv2.drawKeypoints(img, kp, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
     kp_b64 = encode_image_base64(kp_img)
     
-    # Step 3 & 4: Jalankan deteksi objek (SIFT -> Matching -> RANSAC -> Cluster)
+    # Keypoint detection pada citra asli (tanpa preprocessing CLAHE & Blur)
+    kp_raw, _ = sift.detectAndCompute(gray, None)
+    kp_raw_img = cv2.drawKeypoints(img, kp_raw, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+    kp_raw_b64 = encode_image_base64(kp_raw_img)
+    
+    # Deteksi objek menggunakan pipeline utama
     results = detect_objects(img)
 
     out_img = img.copy()
@@ -100,31 +130,48 @@ def _render_analysis_page(img):
         color = (0, 255, 0) if r["category"] == 'organik' else (0, 165, 255)
         cv2.polylines(out_img, [box], True, color, 3, cv2.LINE_AA)
         
-        # Buat gambar garis-garis pencocokan SIFT (Feature Matching)
+        # Buat gambar garis-garis pencocokan SIFT (Feature Matching) - Good Matches awal
         match_img = draw_sift_matches(r, img)
         match_b64 = encode_image_base64(match_img)
+        
+        # Buat gambar garis inliers vs outliers dari RANSAC
+        ransac_img = draw_ransac_inliers_outliers(r, img)
+        ransac_b64 = encode_image_base64(ransac_img)
+        
         tpl_b64 = encode_image_base64(r['dataset_img'])
         
         analysis_details.append({
             'item': r['item'],
             'category': r['category'],
+            'good_matches': r.get('good_matches_count', 0),
             'inliers': r['inliers'],
+            'ransac_rate': f"{(r['inliers'] / max(1, r.get('good_matches_count', 1))) * 100:.1f}%",
             'confidence': f"{r['confidence']:.1f}%",
-            **_hitung_metric_sift(r),
+            **_hitung_skor_matching(r),
             'kp_template_cnt': len(r['kp_dataset']),
             'template_b64': tpl_b64,
-            'match_b64': match_b64
+            'match_b64': match_b64,
+            'ransac_b64': ransac_b64
         })
         
     final_b64 = encode_image_base64(out_img)
     
-    # Kirim semua gambar Base64 ke frontend HTML
+    # Kirim semua gambar Base64 + data histogram ke frontend HTML
     return render_template('analysis.html', 
-                           original_b64=gray_b64,
+                           gray_b64=gray_b64,
+                           clahe_b64=clahe_b64,
+                           blur_b64=blur_b64,
+                           dog_b64=dog_b64,
                            kp_b64=kp_b64,
+                           kp_raw_b64=kp_raw_b64,
                            final_b64=final_b64,
                            total_kp=len(kp),
-                           details=analysis_details)
+                           total_kp_raw=len(kp_raw),
+                           details=analysis_details,
+                           hist_gray=json.dumps(hist_gray),
+                           hist_clahe=json.dumps(hist_clahe),
+                           hist_blur=json.dumps(hist_blur),
+                           stats_prep=stats_preprocessing)
 
 # ==========================================
 # ENDPOINT UNTUK WEB INTERFACE (HTML)

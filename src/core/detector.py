@@ -147,6 +147,7 @@ def cari_object_berulang(data_template, good_match, kp_input, lebar_gambar, ting
     """Iterative RANSAC untuk banyak objek."""
     hasil_template = []
     sisa_match = good_match[:]
+    total_good_matches = len(good_match)
 
     for _ in range(MAKS_OBJECT_PER_TEMPLATE):
         if len(sisa_match) < MIN_GOOD_MATCH:
@@ -188,13 +189,15 @@ def cari_object_berulang(data_template, good_match, kp_input, lebar_gambar, ting
         hasil_template.append({
             "category": data_template["category"],
             "item": data_template["item"],
+            "good_matches_count": total_good_matches,
             "inliers": jumlah_inlier,
             "confidence": confidence,
             "box": box_object,
             "dataset_img": data_template["image"],
             "kp_dataset": data_template["kp"],
             "kp_input": kp_input,
-            "matches": match_inlier
+            "matches": match_inlier,
+            "outliers": [sisa_match[i] for i, ok in enumerate(mask_inlier) if not ok]
         })
 
         # Hapus inlier, cari objek berikutnya dari sisa match
